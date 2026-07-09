@@ -113,10 +113,12 @@ enum AudioDeviceManager {
             mElement: kAudioObjectPropertyElementMain
         )
 
-        var name: CFString = "" as CFString
-        var size = UInt32(MemoryLayout<CFString>.size)
-        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &name)
-        return status == noErr ? (name as String) : nil
+        var name: CFString?
+        var size = UInt32(MemoryLayout<CFString?>.size)
+        let status = withUnsafeMutablePointer(to: &name) { pointer in
+            AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, pointer)
+        }
+        return status == noErr ? (name as String?) : nil
     }
 
     private static func hasScope(deviceID: AudioObjectID, scope: AudioObjectPropertyScope) -> Bool {

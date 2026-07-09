@@ -66,8 +66,7 @@ final class AppState: ObservableObject {
     }
 
     var suggestedSSIDs: [String] {
-        var items = profiles.compactMap(\ .matching.wifiSSID)
-        items.append(contentsOf: latestContext.wifiCandidates)
+        var items = latestContext.wifiCandidates
         if let ssid = latestContext.wifiSSID {
             items.append(ssid)
         }
@@ -99,6 +98,10 @@ final class AppState: ObservableObject {
     func requestCurrentLocation() {
         detector.requestFreshLocation()
         refreshNow()
+    }
+
+    func openLocationSettings() {
+        detector.openLocationSettings()
     }
 
     func applyProfile(id: UUID, source: String = "Manual") {

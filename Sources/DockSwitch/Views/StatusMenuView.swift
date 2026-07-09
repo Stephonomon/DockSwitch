@@ -2,6 +2,14 @@ import Foundation
 import MapKit
 import SwiftUI
 
+private enum LiquidGlassTheme {
+    static let ocean = Color(red: 0.17, green: 0.44, blue: 0.76)
+    static let mint = Color(red: 0.37, green: 0.74, blue: 0.7)
+    static let frost = Color.white.opacity(0.2)
+    static let edge = Color.white.opacity(0.36)
+    static let glow = Color.white.opacity(0.6)
+}
+
 struct StatusMenuView: View {
     @ObservedObject var state: AppState
 
@@ -10,12 +18,7 @@ struct StatusMenuView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.96, green: 0.98, blue: 1.0), Color(red: 0.9, green: 0.95, blue: 1.0)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            liquidBackground
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -36,6 +39,12 @@ struct StatusMenuView: View {
                 suggestedSSIDs: state.suggestedSSIDs,
                 onRequestCurrentLocation: {
                     state.requestCurrentLocation()
+                },
+                onOpenLocationSettings: {
+                    state.openLocationSettings()
+                },
+                onRefreshContext: {
+                    state.refreshNow()
                 }
             ) { saved in
                 state.upsertProfile(saved)
@@ -43,89 +52,147 @@ struct StatusMenuView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("DockSwitch")
-                .font(.system(size: 23, weight: .bold, design: .rounded))
-            Text("Active: \(state.activeProfileName)")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-            Text(state.lastEventMessage)
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(.secondary)
+    private var liquidBackground: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.9, green: 0.95, blue: 1.0),
+                    Color(red: 0.78, green: 0.89, blue: 0.98)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            Circle()
+                .fill(LiquidGlassTheme.mint.opacity(0.25))
+                .frame(width: 240, height: 240)
+                .blur(radius: 40)
+                .offset(x: -120, y: -170)
+
+            Circle()
+                .fill(LiquidGlassTheme.ocean.opacity(0.22))
+                .frame(width: 280, height: 280)
+                .blur(radius: 45)
+                .offset(x: 130, y: 220)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                Image(systemName: "arrow.left.arrow.right.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(LiquidGlassTheme.ocean)
+            }
+            .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DockSwitch")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text("Active: \(state.activeProfileName)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                Text(state.lastEventMessage)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+        }
+        .glassCard()
     }
 
     private var detectionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Context")
+
             HStack {
-                Toggle("Auto mode", isOn: Binding(
+                Toggle("Auto Mode", isOn: Binding(
                     get: { state.autoModeEnabled },
                     set: { state.setAutoMode($0) }
                 ))
                 .toggleStyle(.switch)
 
+                Spacer()
+
                 Button("Refresh") {
                     state.refreshNow()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
+                .tint(LiquidGlassTheme.ocean)
+                .controlSize(.small)
             }
 
             Text(state.detectedContextLabel)
                 .font(.system(size: 12, weight: .regular, design: .rounded))
+
             Text("Best match: \(state.latestMatchSummary)")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 11, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
 
             if state.manualOverrideProfileID != nil {
                 Button("Clear manual override") {
                     state.setManualOverride(nil)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassCard()
     }
 
     private var profilesCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Profiles")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                sectionTitle("Profiles")
                 Spacer()
                 Button("New") {
                     editingProfile = nil
                     isShowingEditor = true
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.blue)
+                .tint(LiquidGlassTheme.ocean)
+                .controlSize(.small)
             }
 
             ForEach(state.profiles) { profile in
-                HStack(spacing: 8) {
-                    Image(systemName: profile.iconSymbol)
-                        .frame(width: 20)
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(LiquidGlassTheme.frost)
+                        Image(systemName: profileSymbol(for: profile))
+                            .foregroundStyle(LiquidGlassTheme.ocean)
+                    }
+                    .frame(width: 28, height: 28)
+
                     VStack(alignment: .leading, spacing: 3) {
                         Text(profile.name)
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                         Text(summary(for: profile))
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
+
                     Spacer()
+
                     Button("Apply") {
                         state.setManualOverride(profile.id)
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
+
                     Button("Edit") {
                         editingProfile = profile
                         isShowingEditor = true
                     }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
+
                     Button(role: .destructive) {
                         state.removeProfile(profile)
                     } label: {
@@ -134,12 +201,38 @@ struct StatusMenuView: View {
                     .buttonStyle(.borderless)
                 }
                 .padding(10)
-                .background(Color.white.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(.thinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(LiquidGlassTheme.edge, lineWidth: 0.8)
+                        )
+                )
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .glassCard()
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 14, weight: .bold, design: .rounded))
+            .foregroundStyle(Color.primary.opacity(0.92))
+    }
+
+    private func profileSymbol(for profile: DockProfile) -> String {
+        profileSymbol(forName: profile.name)
+    }
+
+    private func profileSymbol(forName name: String) -> String {
+        let lower = name.lowercased()
+        if lower.contains("home") {
+            return "house.fill"
+        }
+        if lower.contains("work") || lower.contains("office") {
+            return "building.2.fill"
+        }
+        return "arrow.left.arrow.right.circle.fill"
     }
 
     private func summary(for profile: DockProfile) -> String {
@@ -159,10 +252,11 @@ private struct ProfileEditorView: View {
     var suggestedDocks: [String]
     var suggestedSSIDs: [String]
     var onRequestCurrentLocation: () -> Void
+    var onOpenLocationSettings: () -> Void
+    var onRefreshContext: () -> Void
     var onSave: (DockProfile) -> Void
 
     @State private var name: String
-    @State private var iconSymbol: String
     @State private var dockNameContains: String
     @State private var wifiSSID: String
     @State private var latitude: String
@@ -182,6 +276,8 @@ private struct ProfileEditorView: View {
         suggestedDocks: [String],
         suggestedSSIDs: [String],
         onRequestCurrentLocation: @escaping () -> Void,
+        onOpenLocationSettings: @escaping () -> Void,
+        onRefreshContext: @escaping () -> Void,
         onSave: @escaping (DockProfile) -> Void
     ) {
         existingProfile = profile
@@ -190,6 +286,8 @@ private struct ProfileEditorView: View {
         self.suggestedDocks = suggestedDocks
         self.suggestedSSIDs = suggestedSSIDs
         self.onRequestCurrentLocation = onRequestCurrentLocation
+        self.onOpenLocationSettings = onOpenLocationSettings
+        self.onRefreshContext = onRefreshContext
         self.onSave = onSave
 
         let profileDock = profile?.matching.dockNameContains ?? ""
@@ -200,7 +298,6 @@ private struct ProfileEditorView: View {
         let initialSpanDelta = max(initialRadius / 40_000, 0.003)
 
         _name = State(initialValue: profile?.name ?? "")
-        _iconSymbol = State(initialValue: profile?.iconSymbol ?? "mappin.and.ellipse")
         _dockNameContains = State(initialValue: profileDock)
         _wifiSSID = State(initialValue: profileWiFi)
         _latitude = State(initialValue: profile?.matching.latitude.map { String($0) } ?? "")
@@ -218,34 +315,43 @@ private struct ProfileEditorView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(existingProfile == nil ? "New Profile" : "Edit Profile")
-                    .font(.title2.weight(.bold))
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.95, green: 0.98, blue: 1.0), Color(red: 0.86, green: 0.94, blue: 0.99)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-                contextShortcuts
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(existingProfile == nil ? "New Profile" : "Edit Profile")
+                        .font(.title2.weight(.bold))
 
-                Group {
-                    labeledField("Name", text: $name)
-                    labeledField("SF Symbol", text: $iconSymbol)
-                    matchingSection
-                    locationSection
-                    deviceSection
-                }
+                    contextShortcuts
 
-                HStack {
-                    Spacer()
-                    Button("Cancel") { dismiss() }
-                    Button("Save") {
-                        onSave(buildProfile())
-                        dismiss()
+                    Group {
+                        labeledField("Name", text: $name)
+                        matchingSection
+                        locationSection
+                        deviceSection
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    HStack {
+                        Spacer()
+                        Button("Cancel") { dismiss() }
+                        Button("Save") {
+                            onSave(buildProfile())
+                            dismiss()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(LiquidGlassTheme.ocean)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
                 }
+                .padding(18)
+                .frame(width: 470)
             }
-            .padding(18)
-            .frame(width: 460)
         }
         .onChange(of: latitude) { _, _ in
             syncMapFromTextIfNeeded()
@@ -290,6 +396,7 @@ private struct ProfileEditorView: View {
                     onRequestCurrentLocation()
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(LiquidGlassTheme.ocean)
 
                 Button("Use current location") {
                     guard let lat = latestContext.latitude, let lon = latestContext.longitude else {
@@ -311,14 +418,21 @@ private struct ProfileEditorView: View {
                 Text("Location permission is needed for current location and better Wi-Fi scan results.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Button("Open Location Settings") {
+                    onOpenLocationSettings()
+                }
+                .buttonStyle(.bordered)
             }
         }
-        .padding(10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .glassCard(padding: 10)
     }
 
     private var matchingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text("Matching")
+                .font(.caption.weight(.semibold))
+
             labeledField("Dock name contains", text: $dockNameContains)
             if !suggestedDocks.isEmpty {
                 Picker("Detected docks", selection: $dockSuggestionSelection) {
@@ -334,6 +448,18 @@ private struct ProfileEditorView: View {
             }
 
             labeledField("Wi-Fi SSID", text: $wifiSSID)
+            HStack {
+                Text("Connected network: \(latestContext.wifiSSID ?? "Unavailable")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Refresh Wi-Fi list") {
+                    onRefreshContext()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
             if !suggestedSSIDs.isEmpty {
                 Text("Nearby Wi-Fi found: \(suggestedSSIDs.count)")
                     .font(.caption)
@@ -351,6 +477,7 @@ private struct ProfileEditorView: View {
                 }
             }
         }
+        .glassCard(padding: 10)
     }
 
     private var locationSection: some View {
@@ -361,11 +488,11 @@ private struct ProfileEditorView: View {
             ZStack {
                 Map(coordinateRegion: $mapRegion)
                     .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
 
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(LiquidGlassTheme.ocean)
                     .shadow(radius: 2)
             }
 
@@ -397,6 +524,7 @@ private struct ProfileEditorView: View {
                     .font(.caption)
             }
         }
+        .glassCard(padding: 10)
     }
 
     private var deviceSection: some View {
@@ -408,6 +536,7 @@ private struct ProfileEditorView: View {
             devicePicker("Preferred speaker", selection: $speakerName, options: deviceCatalog.speakers)
             devicePicker("Preferred camera", selection: $cameraName, options: deviceCatalog.cameras)
         }
+        .glassCard(padding: 10)
     }
 
     private func labeledField(_ label: String, text: Binding<String>) -> some View {
@@ -437,7 +566,7 @@ private struct ProfileEditorView: View {
         return DockProfile(
             id: existingProfile?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            iconSymbol: iconSymbol.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "mappin.and.ellipse" : iconSymbol,
+            iconSymbol: existingProfile?.iconSymbol ?? "arrow.left.arrow.right.circle",
             autoApplyEnabled: true,
             matching: MatchingRules(
                 dockNameContains: optionalString(dockNameContains),
@@ -487,5 +616,27 @@ private struct ProfileEditorView: View {
     private func optionalString(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private extension View {
+    func glassCard(padding: CGFloat = 12) -> some View {
+        self
+            .padding(padding)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(LiquidGlassTheme.edge, lineWidth: 0.9)
+                    )
+                    .overlay(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(LiquidGlassTheme.glow, lineWidth: 0.7)
+                            .blur(radius: 1.2)
+                            .opacity(0.5)
+                    }
+                    .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 10)
+            )
     }
 }

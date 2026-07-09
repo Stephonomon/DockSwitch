@@ -14,8 +14,9 @@ final class ContextDetector: NSObject {
     }
 
     func requestPermissions() {
-        if locationManager.authorizationStatus == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
+        let status = locationManager.authorizationStatus
+        if status == .notDetermined {
+            requestAuthorizationPrompt()
         }
         locationManager.startUpdatingLocation()
         locationManager.requestLocation()
@@ -23,6 +24,23 @@ final class ContextDetector: NSObject {
 
     func requestFreshLocation() {
         requestPermissions()
+    }
+
+    func openLocationSettings() {
+        let urls = [
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity?Privacy_LocationServices",
+            "x-apple.systempreferences:com.apple.settings.PrivacySecurity",
+            "x-apple.systempreferences:com.apple.settings",
+            "x-apple.systempreferences:"
+        ]
+
+        for raw in urls {
+            guard let url = URL(string: raw) else { continue }
+            if NSWorkspace.shared.open(url) {
+                return
+            }
+        }
     }
 
     func snapshot() -> DetectionContext {
@@ -50,6 +68,14 @@ final class ContextDetector: NSObject {
         )
     }
 
+    private func requestAuthorizationPrompt() {
+        #if os(macOS)
+        locationManager.requestAlwaysAuthorization()
+        #else
+        locationManager.requestWhenInUseAuthorization()
+        #endif
+    }
+
     private func detectedWiFi() -> (current: String?, candidates: [String]) {
         var current: String?
         var allNames: [String] = []
@@ -72,6 +98,11 @@ final class ContextDetector: NSObject {
             }
         }
 
+        if let fromNetworkSetup = currentSSIDFromNetworkSetup(), !fromNetworkSetup.isEmpty {
+            current = fromNetworkSetup
+            allNames.append(fromNetworkSetup)
+        }
+
         if let current {
             allNames.append(current)
         }
@@ -81,6 +112,47 @@ final class ContextDetector: NSObject {
         }
 
         return (current, unique)
+    }
+
+    private func currentSSIDFromNetworkSetup() -> String? {
+        for device in ["en0", "en1"] {
+            guard let output = runNetworkSetup(on: device) else {
+                continue
+            }
+
+            if let range = output.range(of: "Current Wi-Fi Network:") {
+                let tail = output[range.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !tail.isEmpty,
+                   !tail.localizedCaseInsensitiveContains("not associated") {
+                    return tail
+                }
+            }
+        }
+        return nil
+    }
+
+    private func runNetworkSetup(on device: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/networksetup")
+        process.arguments = ["-getairportnetwork", device]
+
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+
+        guard process.terminationStatus == 0 else {
+            return nil
+        }
+
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8)
     }
 }
 

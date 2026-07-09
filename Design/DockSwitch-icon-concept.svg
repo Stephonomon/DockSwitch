@@ -1,0 +1,37 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#CDEBFF"/>
+      <stop offset="100%" stop-color="#8CD3E8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.2" cy="0.15" r="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.68"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.34"/>
+    </linearGradient>
+    <linearGradient id="switch" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2A78C7"/>
+      <stop offset="100%" stop-color="#3B56D8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="72" y="72" width="880" height="880" rx="210" fill="url(#bg)"/>
+  <rect x="72" y="72" width="880" height="880" rx="210" fill="url(#glow)"/>
+
+  <g>
+    <rect x="170" y="178" width="684" height="684" rx="160" fill="url(#glass)"/>
+    <rect x="170" y="178" width="684" height="684" rx="160" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="6"/>
+  </g>
+
+  <g>
+    <rect x="280" y="430" width="464" height="166" rx="82" fill="url(#switch)"/>
+    <circle cx="400" cy="513" r="68" fill="#FFFFFF"/>
+    <path d="M595 348c-22 0-40 18-40 40v36h-71c-22 0-40 18-40 40s18 40 40 40h111c22 0 40-18 40-40v-76c0-22-18-40-40-40z" fill="#2A78C7" opacity="0.9"/>
+    <path d="M429 682c22 0 40-18 40-40v-36h71c22 0 40-18 40-40s-18-40-40-40H429c-22 0-40 18-40 40v76c0 22 18 40 40 40z" fill="#2A78C7" opacity="0.9"/>
+  </g>
+
+  <rect x="72" y="72" width="880" height="880" rx="210" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="8"/>
+</svg>
