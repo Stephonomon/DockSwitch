@@ -5,7 +5,10 @@ enum DockHardwareDetector {
         guard let output = runSystemProfiler() else {
             return []
         }
+        return parseDockCandidates(from: output)
+    }
 
+    static func parseDockCandidates(from output: String) -> [String] {
         let genericHeaders: Set<String> = [
             "Thunderbolt/USB4",
             "Thunderbolt/USB4 Bus 0",
@@ -61,24 +64,26 @@ enum DockHardwareDetector {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return nil
         }
+
+        // Drain stdout before waiting so the child can't deadlock on a full pipe buffer.
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
             return nil
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         return String(data: data, encoding: .utf8)
     }
 
-    private static func seemsLikeDock(_ text: String) -> Bool {
+    static func seemsLikeDock(_ text: String) -> Bool {
         let lowercase = text.lowercased()
         let keywords = [
             "dock", "displaylink", "kensington", "caldigit", "belkin", "hub", "thunderbolt", "usb4"

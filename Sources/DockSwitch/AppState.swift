@@ -11,6 +11,9 @@ final class AppState: ObservableObject {
     @Published var deviceCatalog: DeviceCatalog
     @Published var lastEventMessage: String = "Ready"
     @Published var latestMatchSummary: String = "No profile match yet"
+    @Published private(set) var isRefreshing = false
+
+    private static let autoApplyConfidenceThreshold = 0.7
 
     private let store = ProfileStore()
     private let detector = ContextDetector()
@@ -24,8 +27,8 @@ final class AppState: ObservableObject {
         autoModeEnabled = settings.autoModeEnabled
         manualOverrideProfileID = settings.manualOverrideProfileID
 
-        latestContext = detector.snapshot()
-        deviceCatalog = DeviceDiscoveryService.currentCatalog()
+        latestContext = .empty
+        deviceCatalog = .empty
         detector.requestPermissions()
 
         if let overrideID = manualOverrideProfileID, profiles.contains(where: { $0.id == overrideID }) {
@@ -33,7 +36,7 @@ final class AppState: ObservableObject {
             lastEventMessage = "Manual override active"
         }
 
-        refreshNow()
+        requestRefresh()
         startAutoPolling()
     }
 
@@ -75,21 +78,37 @@ final class AppState: ObservableObject {
         }
     }
 
-    func refreshNow() {
-        latestContext = detector.snapshot()
-        deviceCatalog = DeviceDiscoveryService.currentCatalog()
-
-        if let match = ProfileMatcher.bestMatch(for: latestContext, in: profiles) {
-            latestMatchSummary = "\(match.profile.name) (\(Int(match.confidence * 100))%)"
-        } else {
-            latestMatchSummary = "No eligible match"
+    /// Fire-and-forget wrapper so views and timers can trigger a refresh
+    /// without awaiting it.
+    func requestRefresh(fullWifiScan: Bool = false) {
+        Task {
+            await self.refresh(fullWifiScan: fullWifiScan)
         }
+    }
+
+    func refresh(fullWifiScan: Bool = false) async {
+        guard !isRefreshing else {
+            return
+        }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        latestContext = await detector.snapshot(fullWifiScan: fullWifiScan)
+        deviceCatalog = await Task.detached(priority: .utility) {
+            DeviceDiscoveryService.currentCatalog()
+        }.value
+
+        let match = ProfileMatcher.bestMatch(for: latestContext, in: profiles)
+        latestMatchSummary = match.map { "\($0.profile.name) (\(Int($0.confidence * 100))%)" }
+            ?? "No eligible match"
 
         guard autoModeEnabled, manualOverrideProfileID == nil else {
             return
         }
 
-        if let match = ProfileMatcher.bestMatch(for: latestContext, in: profiles), match.confidence >= 0.7 {
+        if let match,
+           match.confidence >= Self.autoApplyConfidenceThreshold,
+           match.profile.id != activeProfileID {
             applyProfile(id: match.profile.id, source: "Auto")
             lastEventMessage = "Auto applied \(match.profile.name): \(match.reasons.joined(separator: ", "))"
         }
@@ -97,7 +116,7 @@ final class AppState: ObservableObject {
 
     func requestCurrentLocation() {
         detector.requestFreshLocation()
-        refreshNow()
+        requestRefresh()
     }
 
     func openLocationSettings() {
@@ -135,7 +154,7 @@ final class AppState: ObservableObject {
         autoModeEnabled = enabled
         if enabled {
             manualOverrideProfileID = nil
-            refreshNow()
+            requestRefresh()
         }
         saveSettings()
     }
@@ -147,7 +166,14 @@ final class AppState: ObservableObject {
             profiles.append(profile)
         }
         store.saveProfiles(profiles)
-        refreshNow()
+
+        // Auto mode skips re-applying an already-active profile, so push
+        // edits to the active profile's device preferences immediately.
+        if activeProfileID == profile.id {
+            applyProfile(id: profile.id, source: "Updated")
+        }
+
+        requestRefresh()
     }
 
     func removeProfile(_ profile: DockProfile) {
@@ -167,11 +193,13 @@ final class AppState: ObservableObject {
     }
 
     private func startAutoPolling() {
-        timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.refreshNow()
+                self?.requestRefresh()
             }
         }
+        timer.tolerance = 5
+        self.timer = timer
     }
 
     private static func defaultProfiles() -> [DockProfile] {
@@ -180,16 +208,16 @@ final class AppState: ObservableObject {
                 name: "Home",
                 iconSymbol: "house.fill",
                 matching: MatchingRules(
-                    dockNameContains: "Display",
+                    dockNameContains: nil,
                     wifiSSID: nil,
                     latitude: nil,
                     longitude: nil,
                     radiusMeters: 100
                 ),
                 preferences: DevicePreferences(
-                    microphoneName: "Yeti",
+                    microphoneName: nil,
                     speakerName: nil,
-                    cameraName: "Insta360"
+                    cameraName: nil
                 )
             ),
             DockProfile(

@@ -17,13 +17,11 @@ enum AudioDeviceManager {
                 continue
             }
 
-            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeInput),
-               shouldIncludeInput(named: name) {
+            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeInput) {
                 inputNames.append(name)
             }
 
-            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeOutput),
-               shouldIncludeOutput(named: name) {
+            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeOutput) {
                 outputNames.append(name)
             }
         }
@@ -41,7 +39,13 @@ enum AudioDeviceManager {
 
     @discardableResult
     static func setDefaultOutput(named name: String) -> Bool {
-        setDefaultDevice(named: name, selector: kAudioHardwarePropertyDefaultOutputDevice, scope: kAudioDevicePropertyScopeOutput)
+        let changed = setDefaultDevice(named: name, selector: kAudioHardwarePropertyDefaultOutputDevice, scope: kAudioDevicePropertyScopeOutput)
+        if changed {
+            // Route system alerts/sound effects to the same device so nothing
+            // keeps playing through the old speakers.
+            _ = setDefaultDevice(named: name, selector: kAudioHardwarePropertyDefaultSystemOutputDevice, scope: kAudioDevicePropertyScopeOutput)
+        }
+        return changed
     }
 
     private static func setDefaultDevice(named name: String, selector: AudioObjectPropertySelector, scope: AudioObjectPropertyScope) -> Bool {
@@ -128,30 +132,31 @@ enum AudioDeviceManager {
             mElement: kAudioObjectPropertyElementMain
         )
 
+        // The property size is non-zero even for a device with no streams in
+        // this scope (an empty AudioBufferList still has a header), so read the
+        // configuration and check for an actual channel.
         var size: UInt32 = 0
-        let status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size)
-        return status == noErr && size > 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size) == noErr, size > 0 else {
+            return false
+        }
+
+        let buffer = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(size),
+            alignment: MemoryLayout<AudioBufferList>.alignment
+        )
+        defer { buffer.deallocate() }
+
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, buffer) == noErr else {
+            return false
+        }
+
+        let bufferList = UnsafeMutableAudioBufferListPointer(buffer.assumingMemoryBound(to: AudioBufferList.self))
+        return bufferList.contains { $0.mNumberChannels > 0 }
     }
 
     private static func dedupedSorted(_ values: [String]) -> [String] {
         Array(Set(values)).sorted { lhs, rhs in
             lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
         }
-    }
-
-    private static func shouldIncludeInput(named name: String) -> Bool {
-        let lower = name.lowercased()
-        if lower.contains("speaker") && !lower.contains("headset") {
-            return false
-        }
-        return true
-    }
-
-    private static func shouldIncludeOutput(named name: String) -> Bool {
-        let lower = name.lowercased()
-        if lower.contains("microphone") && !lower.contains("headset") {
-            return false
-        }
-        return true
     }
 }

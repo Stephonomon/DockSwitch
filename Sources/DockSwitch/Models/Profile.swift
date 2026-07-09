@@ -37,6 +37,17 @@ struct DockProfile: Codable, Hashable, Identifiable {
         self.matching = matching
         self.preferences = preferences
     }
+
+    static func defaultSymbol(forName name: String) -> String {
+        let lower = name.lowercased()
+        if lower.contains("home") {
+            return "house.fill"
+        }
+        if lower.contains("work") || lower.contains("office") {
+            return "building.2.fill"
+        }
+        return "arrow.left.arrow.right.circle.fill"
+    }
 }
 
 struct DetectionContext {
@@ -48,10 +59,24 @@ struct DetectionContext {
     var longitude: Double?
     var locationAuthorized: Bool
     var observedAt: Date
+
+    static let empty = DetectionContext(
+        dockName: nil,
+        dockCandidates: [],
+        wifiSSID: nil,
+        wifiCandidates: [],
+        latitude: nil,
+        longitude: nil,
+        locationAuthorized: false,
+        observedAt: .distantPast
+    )
 }
 
 struct ProfileMatch {
     var profile: DockProfile
+    /// Fraction of the profile's own rules that matched (0–1); used for the auto-apply threshold.
     var confidence: Double
+    /// Absolute weight of matched signals; used to rank competing profiles.
+    var matchedWeight: Double
     var reasons: [String]
 }

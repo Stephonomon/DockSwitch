@@ -1,93 +1,96 @@
 # DockSwitch
 
-DockSwitch is a macOS menu bar app that helps switch audio/video defaults based on context (dock, Wi-Fi, and location) so moving between setups is faster and less error-prone.
+**Automatic audio device switching for Mac users who move between desks.**
 
-## Current Status
+DockSwitch is a lightweight macOS menu bar app that detects *where* you're working — by dock, Wi-Fi network, and location — and switches your default microphone and speakers to match. Plug into your desk at home and your Yeti mic takes over; dock at the office and your conference speaker is ready before your first meeting.
 
-- Menu bar app with profile-based context matching
-- Auto mode and manual override support
-- Profile editor with device dropdowns for microphone, speaker, and camera
-- Dock detection suggestions and Thunderbolt dock candidate detection
-- Wi-Fi detection suggestions and refresh actions
-- Map-based location + radius controls
-- CoreAudio default input/output switching
-- Bundled `.app` launcher script for better permissions behavior
-- Liquid-glass style UI pass in progress
-- Icon concept assets in `Design/`
+![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
+![Swift](https://img.shields.io/badge/swift-6-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## Project Structure
+<!-- TODO: add a screenshot of the popover here: ![DockSwitch popover](Design/screenshot.png) -->
 
-- App entry: `Sources/DockSwitch/AppMain.swift`
-- App state: `Sources/DockSwitch/AppState.swift`
-- Menu/editor UI: `Sources/DockSwitch/Views/StatusMenuView.swift`
-- Context detection: `Sources/DockSwitch/Services/ContextDetector.swift`
-- Dock hardware detection: `Sources/DockSwitch/Services/DockHardwareDetector.swift`
-- Audio switching: `Sources/DockSwitch/Services/AudioDeviceManager.swift`
-- Device discovery: `Sources/DockSwitch/Services/DeviceDiscoveryService.swift`
-- Profile matching: `Sources/DockSwitch/Services/ProfileMatcher.swift`
-- Profile persistence: `Sources/DockSwitch/Services/ProfileStore.swift`
-- Models: `Sources/DockSwitch/Models/Profile.swift`
-- Launcher script: `scripts/run-dockswitch-app.sh`
-- Icon concept: `Design/DockSwitch-icon-concept.svg`
-- Icon notes: `Design/ICON_NOTES.md`
+## Features
 
-## Requirements
+- **Profiles per location** — bundle a preferred mic, speaker, and camera under a name like "Home" or "Work"
+- **Automatic switching** — profiles activate on their own based on the dock you're connected to, your Wi-Fi network, and/or a location geofence
+- **Manual control** — one click applies any profile; manual override pauses auto mode until you release it
+- **Smart matching** — profiles matching more signals win; nothing switches unless confidence is high
+- **Menu bar native** — lives quietly in the menu bar; hover the icon to see the active profile and devices
+- **Private by design** — no network calls, no analytics; everything stays on your Mac
 
-- macOS 14+
-- Xcode Command Line Tools
+## Install
 
-Install tools if needed:
+1. Download `DockSwitch-x.y.z.zip` from the [latest release](../../releases/latest)
+2. Unzip it and drag **DockSwitch.app** into your **Applications** folder
+3. Open it. Because DockSwitch is a free, unsigned app, macOS will block the first launch:
+   - macOS 15 (Sequoia) and later: open **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"** next to the DockSwitch message, then confirm
+   - macOS 14 (Sonoma): right-click DockSwitch.app → **Open** → **Open**
+4. Look for the dock icon in your menu bar. Grant **Location** access when prompted — it powers geofence matching and improves Wi-Fi detection (macOS hides Wi-Fi names from apps without it)
+
+> **Icon not showing?** If your menu bar is crowded (especially on a notched MacBook), macOS may hide new icons. Free up space by removing items you don't need (⌘-drag them off, or trim modules in System Settings → Control Center), or use a menu bar manager like [Ice](https://icemenubar.app/).
+
+## Getting Started
+
+1. Click the DockSwitch icon → **New**
+2. Name the profile ("Home", "Office", ...)
+3. Pick match rules: use **Use current dock** / **Use current Wi-Fi** to grab what's detected right now, and optionally set a location + radius on the map
+4. Choose the **Preferred microphone** and **Preferred speaker** for that setup
+5. Save. With **Auto Mode** on, the profile applies whenever its signals match
+
+Hover the menu bar icon anytime to see the active profile and its devices. Right-click the icon (or use the button at the bottom of the popover) to quit.
+
+## Important: how apps pick up your devices
+
+DockSwitch sets the **macOS system default** input and output devices (including the alert sound output). What happens next depends on the app:
+
+| App | Behavior |
+|---|---|
+| FaceTime, Safari, system sounds | Follow the system default automatically ✅ |
+| Zoom | Set mic/speaker to **"Same as System"** once, then follows ✅ |
+| Chrome / Edge (and web apps like Clipchamp, Meet) | Follow only when the site's device picker is set to the **"Default — ..."** entry. If a specific device was ever chosen, that choice sticks — reselect "Default" once |
+| Microsoft Teams (new client) | Does **not** follow the macOS default — Teams keeps its own selection under **Teams Settings → Devices**. Pick your dock's devices there once per setup; Teams remembers and re-selects them whenever those devices are present. (Teams in the browser follows the system default.) |
+
+**Cameras:** macOS has no system-wide "default camera," so every app chooses its own. DockSwitch stores your camera preference as a reference, but you select the camera inside each app.
+
+## Troubleshooting
+
+- **Wi-Fi shows "unavailable"** — grant Location access (System Settings → Privacy & Security → Location Services). macOS redacts Wi-Fi network names from apps without it.
+- **Location permission stuck** — reset it and relaunch:
+  ```bash
+  tccutil reset Location com.dockswitch.menuapp
+  ```
+- **A profile isn't auto-applying** — open the popover and check "Best match". Auto-apply requires 70%+ of the profile's own rules to match, and manual override must be cleared.
+
+## Building from Source
+
+Requires macOS 14+ and Xcode Command Line Tools (`xcode-select --install`).
 
 ```bash
-xcode-select --install
+git clone https://github.com/Stephonomon/DockSwitch.git
+cd DockSwitch
+./scripts/run-dockswitch-app.sh    # debug build, assembles and launches the .app
 ```
 
-## Build And Run
+Other scripts:
 
-Recommended mode (bundled app identity `com.dockswitch.menuapp`):
+- `./scripts/test.sh` — run the test suite (wraps `swift test` with the framework paths Command Line Tools need)
+- `./scripts/package-release.sh [version]` — build a distributable, ad-hoc-signed `DockSwitch.app` + zip in `dist/`
 
-```bash
-cd "/Users/proctors/Library/CloudStorage/OneDrive-Children'sHospitalofPhiladelphia/Documents/Dynamic Dock App"
-./scripts/run-dockswitch-app.sh
-```
+Releases are automated: pushing a `v*` tag (e.g. `v1.0.0`) triggers the [release workflow](.github/workflows/release.yml), which packages the app and publishes it with the zip attached.
 
-Development mode:
+### Project layout
 
-```bash
-cd "/Users/proctors/Library/CloudStorage/OneDrive-Children'sHospitalofPhiladelphia/Documents/Dynamic Dock App"
-xcrun swift run --disable-sandbox DockSwitch
-```
+- `Sources/DockSwitch/` — app entry, state, menu bar controller
+  - `Services/` — context detection (dock/Wi-Fi/location), profile matching, CoreAudio switching, persistence
+  - `Views/` — SwiftUI popover and profile editor
+  - `Models/` — profiles, matching rules, detection context
+- `Tests/DockSwitchTests/` — matcher and parser tests
 
-## Permissions
+### How matching works
 
-DockSwitch uses Location Services for location matching and Wi-Fi scan behavior.
+Each profile can match on dock name (substring), Wi-Fi SSID (exact, case-insensitive), and a geofence. Signals carry weights (dock 0.4, Wi-Fi 0.35, location 0.25); profiles are ranked by total matched weight so more specific matches win, and auto-apply requires 70% of a profile's own rules to match. Context refreshes every 20 seconds off the main thread; the expensive nearby-Wi-Fi scan only runs when the profile editor is open or you click Refresh.
 
-If location permission gets stuck:
+## License
 
-```bash
-tccutil reset Location com.dockswitch.menuapp
-./scripts/run-dockswitch-app.sh
-```
-
-## Matching Logic (Current)
-
-- Dock: string match against detected dock candidates
-- Wi-Fi: exact SSID match
-- Location: geofence distance check using latitude/longitude/radius
-- Confidence score: combined signal score with auto-apply threshold
-
-## Known Constraints
-
-- Camera defaulting is app-dependent; DockSwitch stores camera preference but cannot force all third-party apps to switch.
-- Wi-Fi scan results are still subject to macOS API/privacy behavior and environment conditions.
-- The current SwiftUI `Map(coordinateRegion:)` API logs a deprecation warning on macOS 14+, but functionality still works.
-
-## Design Direction
-
-Current visual direction is liquid-glass inspired:
-
-- Frosted cards and layered translucency
-- Soft gradient/glow atmosphere
-- Clear typography hierarchy with compact controls
-
-Use `Design/ICON_NOTES.md` for converting the icon concept SVG into `.iconset` / `.icns`.
+[MIT](LICENSE)

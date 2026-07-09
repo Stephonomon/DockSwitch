@@ -1,0 +1,20 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package app
+        run: ./scripts/package-release.sh "${GITHUB_REF_NAME#v}"
+      - name: Create GitHub release
+        run: gh release create "$GITHUB_REF_NAME" dist/DockSwitch-*.zip --generate-notes --title "DockSwitch $GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}

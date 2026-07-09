@@ -2,9 +2,12 @@ import AppKit
 
 @main
 struct DockSwitchAppMain {
+    // NSApplication.delegate is weak; keep a strong reference for the app's
+    // lifetime so the delegate isn't deallocated before launch completes.
+    @MainActor private static let delegate = AppDelegate()
+
     static func main() {
         let app = NSApplication.shared
-        let delegate = AppDelegate()
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
         app.run()

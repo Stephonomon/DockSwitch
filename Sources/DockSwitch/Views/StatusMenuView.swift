@@ -10,11 +10,21 @@ private enum LiquidGlassTheme {
     static let glow = Color.white.opacity(0.6)
 }
 
+private struct EditorContext: Identifiable {
+    let id: UUID
+    let profile: DockProfile?
+
+    init(profile: DockProfile?) {
+        id = profile?.id ?? UUID()
+        self.profile = profile
+    }
+}
+
 struct StatusMenuView: View {
     @ObservedObject var state: AppState
 
-    @State private var isShowingEditor = false
-    @State private var editingProfile: DockProfile?
+    @State private var editorContext: EditorContext?
+    @State private var profilePendingDeletion: DockProfile?
 
     var body: some View {
         ZStack {
@@ -25,14 +35,15 @@ struct StatusMenuView: View {
                     header
                     detectionCard
                     profilesCard
+                    footer
                 }
                 .padding(14)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .sheet(isPresented: $isShowingEditor) {
+        .sheet(item: $editorContext) { context in
             ProfileEditorView(
-                profile: editingProfile,
+                profile: context.profile,
                 deviceCatalog: state.deviceCatalog,
                 latestContext: state.latestContext,
                 suggestedDocks: state.suggestedDockNames,
@@ -44,10 +55,28 @@ struct StatusMenuView: View {
                     state.openLocationSettings()
                 },
                 onRefreshContext: {
-                    state.refreshNow()
+                    state.requestRefresh(fullWifiScan: true)
                 }
             ) { saved in
                 state.upsertProfile(saved)
+            }
+        }
+        .confirmationDialog(
+            "Delete \"\(profilePendingDeletion?.name ?? "")\"?",
+            isPresented: Binding(
+                get: { profilePendingDeletion != nil },
+                set: { if !$0 { profilePendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let profile = profilePendingDeletion {
+                    state.removeProfile(profile)
+                }
+                profilePendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) {
+                profilePendingDeletion = nil
             }
         }
     }
@@ -119,12 +148,18 @@ struct StatusMenuView: View {
 
                 Spacer()
 
+                if state.isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
                 Button("Refresh") {
-                    state.refreshNow()
+                    state.requestRefresh(fullWifiScan: true)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(LiquidGlassTheme.ocean)
                 .controlSize(.small)
+                .disabled(state.isRefreshing)
             }
 
             Text(state.detectedContextLabel)
@@ -151,8 +186,7 @@ struct StatusMenuView: View {
                 sectionTitle("Profiles")
                 Spacer()
                 Button("New") {
-                    editingProfile = nil
-                    isShowingEditor = true
+                    editorContext = EditorContext(profile: nil)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(LiquidGlassTheme.ocean)
@@ -187,14 +221,13 @@ struct StatusMenuView: View {
                     .controlSize(.small)
 
                     Button("Edit") {
-                        editingProfile = profile
-                        isShowingEditor = true
+                        editorContext = EditorContext(profile: profile)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
 
                     Button(role: .destructive) {
-                        state.removeProfile(profile)
+                        profilePendingDeletion = profile
                     } label: {
                         Image(systemName: "trash")
                     }
@@ -214,6 +247,19 @@ struct StatusMenuView: View {
         .glassCard()
     }
 
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button("Quit DockSwitch") {
+                NSApp.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
+            Spacer()
+        }
+    }
+
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -221,18 +267,7 @@ struct StatusMenuView: View {
     }
 
     private func profileSymbol(for profile: DockProfile) -> String {
-        profileSymbol(forName: profile.name)
-    }
-
-    private func profileSymbol(forName name: String) -> String {
-        let lower = name.lowercased()
-        if lower.contains("home") {
-            return "house.fill"
-        }
-        if lower.contains("work") || lower.contains("office") {
-            return "building.2.fill"
-        }
-        return "arrow.left.arrow.right.circle.fill"
+        profile.iconSymbol
     }
 
     private func summary(for profile: DockProfile) -> String {
@@ -363,6 +398,11 @@ private struct ProfileEditorView: View {
             if let lat = latestContext.latitude, let lon = latestContext.longitude {
                 mapRegion.center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
             }
+        }
+        .onAppear {
+            // Populate the nearby Wi-Fi picker; the periodic poll skips the
+            // expensive scan, so run one now that the editor needs it.
+            onRefreshContext()
         }
     }
 
@@ -519,6 +559,12 @@ private struct ProfileEditorView: View {
             labeledField("Latitude", text: $latitude)
             labeledField("Longitude", text: $longitude)
 
+            if hasInvalidCoordinateInput {
+                Text("Latitude and longitude must both be valid numbers, or the location rule is ignored.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             Stepper(value: $radiusMeters, in: 25...5000, step: 25) {
                 Text("Radius meters: \(Int(radiusMeters))")
                     .font(.caption)
@@ -560,14 +606,24 @@ private struct ProfileEditorView: View {
         }
     }
 
+    private var hasInvalidCoordinateInput: Bool {
+        let latEmpty = latitude.trimmingCharacters(in: .whitespaces).isEmpty
+        let lonEmpty = longitude.trimmingCharacters(in: .whitespaces).isEmpty
+        if latEmpty && lonEmpty {
+            return false
+        }
+        return Double(latitude) == nil || Double(longitude) == nil
+    }
+
     private func buildProfile() -> DockProfile {
         let hasLocation = Double(latitude) != nil && Double(longitude) != nil
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return DockProfile(
             id: existingProfile?.id ?? UUID(),
-            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            iconSymbol: existingProfile?.iconSymbol ?? "arrow.left.arrow.right.circle",
-            autoApplyEnabled: true,
+            name: trimmedName,
+            iconSymbol: existingProfile?.iconSymbol ?? DockProfile.defaultSymbol(forName: trimmedName),
+            autoApplyEnabled: existingProfile?.autoApplyEnabled ?? true,
             matching: MatchingRules(
                 dockNameContains: optionalString(dockNameContains),
                 wifiSSID: optionalString(wifiSSID),

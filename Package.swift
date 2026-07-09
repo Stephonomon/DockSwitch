@@ -13,6 +13,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "DockSwitch"
+        ),
+        .testTarget(
+            name: "DockSwitchTests",
+            dependencies: ["DockSwitch"]
         )
     ],
     swiftLanguageModes: [.v6]

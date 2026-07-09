@@ -5,6 +5,8 @@ struct DeviceCatalog {
     var microphones: [String]
     var speakers: [String]
     var cameras: [String]
+
+    static let empty = DeviceCatalog(microphones: [], speakers: [], cameras: [])
 }
 
 enum DeviceDiscoveryService {

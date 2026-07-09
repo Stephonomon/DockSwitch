@@ -1,6 +1,9 @@
 import Foundation
+import os
 
 final class ProfileStore {
+    private static let logger = Logger(subsystem: "com.dockswitch.menuapp", category: "ProfileStore")
+
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -21,33 +24,50 @@ final class ProfileStore {
     }
 
     func loadProfiles() -> [DockProfile] {
-        guard let data = try? Data(contentsOf: profilesURL),
-              let profiles = try? decoder.decode([DockProfile].self, from: data) else {
-            return []
-        }
-        return profiles
+        load([DockProfile].self, from: profilesURL) ?? []
     }
 
     func saveProfiles(_ profiles: [DockProfile]) {
-        guard let data = try? encoder.encode(profiles) else {
-            return
-        }
-        try? data.write(to: profilesURL, options: .atomic)
+        save(profiles, to: profilesURL)
     }
 
     func loadSettings() -> AppSettings {
-        guard let data = try? Data(contentsOf: settingsURL),
-              let settings = try? decoder.decode(AppSettings.self, from: data) else {
-            return .init(autoModeEnabled: true, manualOverrideProfileID: nil)
-        }
-        return settings
+        load(AppSettings.self, from: settingsURL)
+            ?? .init(autoModeEnabled: true, manualOverrideProfileID: nil)
     }
 
     func saveSettings(_ settings: AppSettings) {
-        guard let data = try? encoder.encode(settings) else {
-            return
+        save(settings, to: settingsURL)
+    }
+
+    private func load<T: Decodable>(_ type: T.Type, from url: URL) -> T? {
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return nil
         }
-        try? data.write(to: settingsURL, options: .atomic)
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try decoder.decode(type, from: data)
+        } catch {
+            // Preserve the unreadable file instead of letting the next save
+            // silently overwrite the user's data.
+            let backupURL = url.appendingPathExtension("bak")
+            try? FileManager.default.removeItem(at: backupURL)
+            try? FileManager.default.moveItem(at: url, to: backupURL)
+            Self.logger.error("Failed to load \(url.lastPathComponent, privacy: .public): \(error, privacy: .public). Backed up to \(backupURL.lastPathComponent, privacy: .public).")
+            return nil
+        }
+    }
+
+    private func save<T: Encodable>(_ value: T, to url: URL) {
+        do {
+            let data = try encoder.encode(value)
+            try data.write(to: url, options: .atomic)
+            // Profiles can contain home/work coordinates; keep them user-only readable.
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        } catch {
+            Self.logger.error("Failed to save \(url.lastPathComponent, privacy: .public): \(error, privacy: .public)")
+        }
     }
 }
 

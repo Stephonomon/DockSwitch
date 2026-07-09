@@ -2,14 +2,17 @@ import Foundation
 
 enum ProfileMatcher {
     static func bestMatch(for context: DetectionContext, in profiles: [DockProfile]) -> ProfileMatch? {
-        let matches = profiles
+        profiles
             .filter(\ .autoApplyEnabled)
             .compactMap { profile in
                 score(profile: profile, context: context)
             }
-            .sorted { $0.confidence > $1.confidence }
-
-        return matches.first
+            .max { lhs, rhs in
+                // Rank by total matched signal weight so a profile matching
+                // dock + Wi-Fi outranks one matching Wi-Fi alone; break ties
+                // by how many distinct signals matched.
+                (lhs.matchedWeight, lhs.reasons.count) < (rhs.matchedWeight, rhs.reasons.count)
+            }
     }
 
     static func score(profile: DockProfile, context: DetectionContext) -> ProfileMatch? {
@@ -47,12 +50,12 @@ enum ProfileMatcher {
             }
         }
 
-        guard maxScore > 0 else {
+        guard maxScore > 0, score > 0 else {
             return nil
         }
 
         let confidence = score / maxScore
-        return ProfileMatch(profile: profile, confidence: confidence, reasons: reasons)
+        return ProfileMatch(profile: profile, confidence: confidence, matchedWeight: score, reasons: reasons)
     }
 
     private static func haversineMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double) -> Double {
