@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published var manualOverrideProfileID: UUID?
     @Published var activeProfileID: UUID?
     @Published var latestContext: DetectionContext
+    @Published var deviceCatalog: DeviceCatalog
     @Published var lastEventMessage: String = "Ready"
     @Published var latestMatchSummary: String = "No profile match yet"
 
@@ -24,6 +25,7 @@ final class AppState: ObservableObject {
         manualOverrideProfileID = settings.manualOverrideProfileID
 
         latestContext = detector.snapshot()
+        deviceCatalog = DeviceDiscoveryService.currentCatalog()
         detector.requestPermissions()
 
         if let overrideID = manualOverrideProfileID, profiles.contains(where: { $0.id == overrideID }) {
@@ -49,8 +51,25 @@ final class AppState: ObservableObject {
         return "Dock: \(dock) | Wi-Fi: \(wifi)"
     }
 
+    var suggestedDockNames: [String] {
+        var items = profiles.compactMap(\ .matching.dockNameContains)
+        if let dock = latestContext.dockName {
+            items.append(dock)
+        }
+        return Array(Set(items)).sorted()
+    }
+
+    var suggestedSSIDs: [String] {
+        var items = profiles.compactMap(\ .matching.wifiSSID)
+        if let ssid = latestContext.wifiSSID {
+            items.append(ssid)
+        }
+        return Array(Set(items)).sorted()
+    }
+
     func refreshNow() {
         latestContext = detector.snapshot()
+        deviceCatalog = DeviceDiscoveryService.currentCatalog()
 
         if let match = ProfileMatcher.bestMatch(for: latestContext, in: profiles) {
             latestMatchSummary = "\(match.profile.name) (\(Int(match.confidence * 100))%)"
