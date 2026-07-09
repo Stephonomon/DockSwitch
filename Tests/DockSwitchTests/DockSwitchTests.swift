@@ -17,9 +17,12 @@ final class DockSwitchTests: XCTestCase {
 
         let context = DetectionContext(
             dockName: "SD5900T/SD5910T/SD5920T",
+            dockCandidates: ["SD5900T/SD5910T/SD5920T"],
             wifiSSID: "MyHomeWiFi",
+            wifiCandidates: ["MyHomeWiFi"],
             latitude: nil,
             longitude: nil,
+            locationAuthorized: true,
             observedAt: .now
         )
 

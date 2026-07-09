@@ -9,19 +9,29 @@ struct AudioDeviceList {
 enum AudioDeviceManager {
     static func listAudioDevices() -> AudioDeviceList {
         let all = allDeviceIDs()
-        var inputs: [String] = []
-        var outputs: [String] = []
+        var inputNames: [String] = []
+        var outputNames: [String] = []
 
         for device in all {
-            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeInput) {
-                inputs.append(deviceName(device) ?? "Unknown Input")
+            guard let name = deviceName(device) else {
+                continue
             }
-            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeOutput) {
-                outputs.append(deviceName(device) ?? "Unknown Output")
+
+            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeInput),
+               shouldIncludeInput(named: name) {
+                inputNames.append(name)
+            }
+
+            if hasScope(deviceID: device, scope: kAudioDevicePropertyScopeOutput),
+               shouldIncludeOutput(named: name) {
+                outputNames.append(name)
             }
         }
 
-        return AudioDeviceList(inputs: inputs.sorted(), outputs: outputs.sorted())
+        return AudioDeviceList(
+            inputs: dedupedSorted(inputNames),
+            outputs: dedupedSorted(outputNames)
+        )
     }
 
     @discardableResult
@@ -119,5 +129,27 @@ enum AudioDeviceManager {
         var size: UInt32 = 0
         let status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size)
         return status == noErr && size > 0
+    }
+
+    private static func dedupedSorted(_ values: [String]) -> [String] {
+        Array(Set(values)).sorted { lhs, rhs in
+            lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
+    }
+
+    private static func shouldIncludeInput(named name: String) -> Bool {
+        let lower = name.lowercased()
+        if lower.contains("speaker") && !lower.contains("headset") {
+            return false
+        }
+        return true
+    }
+
+    private static func shouldIncludeOutput(named name: String) -> Bool {
+        let lower = name.lowercased()
+        if lower.contains("microphone") && !lower.contains("headset") {
+            return false
+        }
+        return true
     }
 }

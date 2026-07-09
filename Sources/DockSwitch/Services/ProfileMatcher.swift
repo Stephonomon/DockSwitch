@@ -27,8 +27,8 @@ enum ProfileMatcher {
 
         if let dockHint = profile.matching.dockNameContains, !dockHint.isEmpty {
             maxScore += 0.4
-            if let dockName = context.dockName,
-               dockName.localizedCaseInsensitiveContains(dockHint) {
+            let candidates = context.dockCandidates + [context.dockName].compactMap { $0 }
+            if candidates.contains(where: { $0.localizedCaseInsensitiveContains(dockHint) }) {
                 score += 0.4
                 reasons.append("Dock signature matched \(dockHint)")
             }

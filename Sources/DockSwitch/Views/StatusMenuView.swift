@@ -33,7 +33,10 @@ struct StatusMenuView: View {
                 deviceCatalog: state.deviceCatalog,
                 latestContext: state.latestContext,
                 suggestedDocks: state.suggestedDockNames,
-                suggestedSSIDs: state.suggestedSSIDs
+                suggestedSSIDs: state.suggestedSSIDs,
+                onRequestCurrentLocation: {
+                    state.requestCurrentLocation()
+                }
             ) { saved in
                 state.upsertProfile(saved)
             }
@@ -155,6 +158,7 @@ private struct ProfileEditorView: View {
     var latestContext: DetectionContext
     var suggestedDocks: [String]
     var suggestedSSIDs: [String]
+    var onRequestCurrentLocation: () -> Void
     var onSave: (DockProfile) -> Void
 
     @State private var name: String
@@ -177,6 +181,7 @@ private struct ProfileEditorView: View {
         latestContext: DetectionContext,
         suggestedDocks: [String],
         suggestedSSIDs: [String],
+        onRequestCurrentLocation: @escaping () -> Void,
         onSave: @escaping (DockProfile) -> Void
     ) {
         existingProfile = profile
@@ -184,6 +189,7 @@ private struct ProfileEditorView: View {
         self.latestContext = latestContext
         self.suggestedDocks = suggestedDocks
         self.suggestedSSIDs = suggestedSSIDs
+        self.onRequestCurrentLocation = onRequestCurrentLocation
         self.onSave = onSave
 
         let profileDock = profile?.matching.dockNameContains ?? ""
@@ -247,6 +253,11 @@ private struct ProfileEditorView: View {
         .onChange(of: longitude) { _, _ in
             syncMapFromTextIfNeeded()
         }
+        .onChange(of: latestContext.latitude) { _, _ in
+            if let lat = latestContext.latitude, let lon = latestContext.longitude {
+                mapRegion.center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            }
+        }
     }
 
     private var contextShortcuts: some View {
@@ -275,6 +286,11 @@ private struct ProfileEditorView: View {
             }
 
             HStack {
+                Button("Locate me now") {
+                    onRequestCurrentLocation()
+                }
+                .buttonStyle(.borderedProminent)
+
                 Button("Use current location") {
                     guard let lat = latestContext.latitude, let lon = latestContext.longitude else {
                         return
@@ -282,12 +298,19 @@ private struct ProfileEditorView: View {
                     setLocation(lat: lat, lon: lon)
                 }
                 .buttonStyle(.bordered)
+                .disabled(latestContext.latitude == nil || latestContext.longitude == nil)
 
                 Button("Clear location") {
                     latitude = ""
                     longitude = ""
                 }
                 .buttonStyle(.bordered)
+            }
+
+            if !latestContext.locationAuthorized {
+                Text("Location permission is needed for current location and better Wi-Fi scan results.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .padding(10)
@@ -312,6 +335,10 @@ private struct ProfileEditorView: View {
 
             labeledField("Wi-Fi SSID", text: $wifiSSID)
             if !suggestedSSIDs.isEmpty {
+                Text("Nearby Wi-Fi found: \(suggestedSSIDs.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 Picker("Detected Wi-Fi", selection: $wifiSuggestionSelection) {
                     Text("Select detected Wi-Fi").tag("")
                     ForEach(suggestedSSIDs, id: \.self) { ssid in
@@ -359,6 +386,7 @@ private struct ProfileEditorView: View {
                     mapRegion.center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
                 }
                 .buttonStyle(.bordered)
+                .disabled(latestContext.latitude == nil || latestContext.longitude == nil)
             }
 
             labeledField("Latitude", text: $latitude)

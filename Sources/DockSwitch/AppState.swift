@@ -46,25 +46,34 @@ final class AppState: ObservableObject {
     }
 
     var detectedContextLabel: String {
-        let dock = latestContext.dockName ?? "No external dock/display"
+        let dock = latestContext.dockName ?? "No dock detected"
         let wifi = latestContext.wifiSSID ?? "Wi-Fi unavailable"
-        return "Dock: \(dock) | Wi-Fi: \(wifi)"
+        let locationState: String
+        if latestContext.latitude != nil && latestContext.longitude != nil {
+            locationState = "Location ready"
+        } else if latestContext.locationAuthorized {
+            locationState = "Locating..."
+        } else {
+            locationState = "Location permission needed"
+        }
+        return "Dock: \(dock) | Wi-Fi: \(wifi) | \(locationState)"
     }
 
     var suggestedDockNames: [String] {
         var items = profiles.compactMap(\ .matching.dockNameContains)
-        if let dock = latestContext.dockName {
-            items.append(dock)
-        }
+        items.append(contentsOf: latestContext.dockCandidates)
         return Array(Set(items)).sorted()
     }
 
     var suggestedSSIDs: [String] {
         var items = profiles.compactMap(\ .matching.wifiSSID)
+        items.append(contentsOf: latestContext.wifiCandidates)
         if let ssid = latestContext.wifiSSID {
             items.append(ssid)
         }
-        return Array(Set(items)).sorted()
+        return Array(Set(items)).sorted { lhs, rhs in
+            lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
     }
 
     func refreshNow() {
@@ -85,6 +94,11 @@ final class AppState: ObservableObject {
             applyProfile(id: match.profile.id, source: "Auto")
             lastEventMessage = "Auto applied \(match.profile.name): \(match.reasons.joined(separator: ", "))"
         }
+    }
+
+    func requestCurrentLocation() {
+        detector.requestFreshLocation()
+        refreshNow()
     }
 
     func applyProfile(id: UUID, source: String = "Manual") {

@@ -41,9 +41,12 @@ struct DockProfile: Codable, Hashable, Identifiable {
 
 struct DetectionContext {
     var dockName: String?
+    var dockCandidates: [String]
     var wifiSSID: String?
+    var wifiCandidates: [String]
     var latitude: Double?
     var longitude: Double?
+    var locationAuthorized: Bool
     var observedAt: Date
 }
 
