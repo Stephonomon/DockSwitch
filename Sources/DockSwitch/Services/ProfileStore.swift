@@ -7,7 +7,7 @@ final class ProfileStore {
     private var baseURL: URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        let root = support.appendingPathComponent("DynamicDock", isDirectory: true)
+        let root = support.appendingPathComponent("DockSwitch", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }

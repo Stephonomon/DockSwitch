@@ -16,10 +16,10 @@ final class MenuBarController {
         popover.contentViewController = NSHostingController(rootView: StatusMenuView(state: state))
 
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "dock.rectangle", accessibilityDescription: "Dynamic Dock")
+            button.image = NSImage(systemSymbolName: "dock.rectangle", accessibilityDescription: "DockSwitch")
             button.action = #selector(togglePopover(_:))
             button.target = self
-            button.toolTip = "Dynamic Dock"
+            button.toolTip = "DockSwitch"
         }
     }
 

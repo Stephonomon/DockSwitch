@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-struct DynamicDockAppMain {
+struct DockSwitchAppMain {
     static func main() {
         let app = NSApplication.shared
         let delegate = AppDelegate()

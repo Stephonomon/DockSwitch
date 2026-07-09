@@ -1,7 +1,7 @@
 import XCTest
-@testable import Dynamic_Dock_App
+@testable import DockSwitch
 
-final class DynamicDockAppTests: XCTestCase {
+final class DockSwitchTests: XCTestCase {
     func testMatcherPrefersCombinedSignals() throws {
         let home = DockProfile(
             name: "Home",

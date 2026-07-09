@@ -3,16 +3,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "Dynamic Dock App",
+    name: "DockSwitch",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "Dynamic Dock App", targets: ["Dynamic Dock App"])
+        .executable(name: "DockSwitch", targets: ["DockSwitch"])
     ],
     targets: [
         .executableTarget(
-            name: "Dynamic Dock App"
+            name: "DockSwitch"
         )
     ],
     swiftLanguageModes: [.v6]

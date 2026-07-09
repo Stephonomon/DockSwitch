@@ -34,7 +34,7 @@ struct StatusMenuView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Dynamic Dock")
+            Text("DockSwitch")
                 .font(.system(size: 23, weight: .bold, design: .rounded))
             Text("Active: \(state.activeProfileName)")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
